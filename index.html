@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <title>Chess Analysis Board</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        :root { --accent: #00ffcc; --bg: #070707; --panel: #111; --danger: #ff3333; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg); color: #fff;
+            margin: 0; padding: 25px;
+            display: flex; justify-content: center;
+        }
+
+        /* Main container for the three-column layout (right - center - left) */
+        .app-container {
+            display: flex;
+            width: 100%;
+            max-width: 1450px;
+            gap: 25px;
+            align-items: stretch;
+            justify-content: center;
+        }
+
+        /* ------------------------------------- */
+        /* Side panels (right and left) */
+        /* ------------------------------------- */
+        .sidebar {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #1a1a1a;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .right-panel { width: 280px; flex-shrink: 0; }
+        .left-panel { width: 320px; flex-shrink: 0; }
+
+        /* ------------------------------------- */
+        /* Large, clean board area (center) */
+        /* ------------------------------------- */
+        .center-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .board-area {
+            display: flex; gap: 15px; align-items: stretch;
+        }
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 750px;
+        }
+        .nav-controls button {
+            flex: 1;
+            padding: 10px 8px;
+            background: #111;
+            color: #ddd;
+            border: 1px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: .95em;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .nav-controls button:hover:not(:disabled) { border-color: var(--accent); background: #1a1a1a; color: var(--accent); }
+        .nav-controls button:disabled { opacity: .35; cursor: not-allowed; }
+        .nav-position-label {
+            flex: 1.4;
+            display: flex; align-items: center; justify-content: center;
+            background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px;
+            color: #888; font-size: .85em; font-family: monospace;
+        }
+        #board {
+            width: 750px; /* Very large board */
+            border: 1px solid #222;
+            border-radius: 4px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            overflow: hidden;
+            background: #222;
+        }
+
+        /* ------------------------------------- */
+        /* Left panel elements */
+        /* ------------------------------------- */
+        .settings-group { margin-bottom: 20px; background: #0a0a0a; padding: 15px; border-radius: 8px; border: 1px solid #151515; }
+        .group-title { margin-bottom: 12px; color: #888; font-size: 0.9em; font-weight: bold; border-bottom: 1px solid #222; padding-bottom: 5px; }
+
+        .time-ctrl { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .status-box { background: #050505; padding: 15px; border-radius: 8px; border: 1px solid var(--accent); text-align: center; margin-top: auto; }
+        #status-txt { font-weight: bold; color: var(--accent); font-size: 1.1em; }
+
+        /* ------------------------------------- */
+        /* Right panel elements (move log) */
+        /* ------------------------------------- */
+        .log-title { color: var(--accent); margin: 0 0 15px 0; font-size: 1.1em; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .log {
+            overflow-y: auto; background: #050505; padding: 15px;
+            font-family: monospace; font-size: 14px; color: #ccc;
+            border: 1px solid #222; border-radius: 8px; flex: 1;
+            scrollbar-width: thin; scrollbar-color: var(--accent) #111;
+        }
+        .log div { margin-bottom: 6px; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px; }
+        .log b { color: var(--accent); }
+
+        /* ------------------------------------- */
+        /* Responsive design for small screens (laptop/mobile) */
+        /* ------------------------------------- */
+        @media(max-width:1300px) {
+            .app-container { flex-wrap: wrap; }
+            .center-panel { order: -1; width: 100%; margin-bottom: 20px;}
+            #board { width: calc(100vw - 160px); max-width: 750px; }
+            .sidebar { width: calc(50% - 15px); height: 450px; }
+        }
+        @media(max-width:768px) {
+            .sidebar { width: 100%; height: auto; }
+            #board { width: calc(100vw - 110px); }
+        }
+
+        /* ------------------------------------- */
+        /* Analysis settings */
+        /* ------------------------------------- */
+        .analysis-settings textarea, .analysis-settings input[type=text] {
+            width: 100%; background: #111; color: #fff; border: 1px solid #333;
+            border-radius: 6px; padding: 8px; font-family: monospace; font-size: .82em;
+            box-sizing: border-box; resize: vertical; outline: none;
+        }
+        .analysis-settings textarea:focus, .analysis-settings input[type=text]:focus { border-color: var(--accent); }
+        .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .btn-small {
+            flex: 1; padding: 8px 6px; background: #111; color: #ddd; border: 1px solid #333;
+            border-radius: 6px; cursor: pointer; font-size: .82em; transition: 0.2s; min-width: 70px;
+        }
+        .btn-small:hover { border-color: var(--accent); background: #1a1a1a; color: var(--accent); }
+        .field-label { font-size: .75em; color: #777; margin: 10px 0 4px; }
+        #analysis-panel { margin-bottom: 20px; }
+        #analysis-lines { max-height: 260px; }
+        #analysis-lines .line-row { margin-bottom: 10px; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; }
+        #analysis-lines .line-eval { color: var(--accent); font-weight: bold; }
+        #analysis-lines .line-moves { color: #aaa; font-size: .85em; display: block; margin-top: 3px; }
+        #analysis-lines .line-depth { color: #555; font-size: .7em; margin-right: 6px; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+
+        <!-- ============================== -->
+        <!-- Right panel (engine lines + move log) -->
+        <!-- ============================== -->
+        <div class="sidebar right-panel">
+            <div id="analysis-panel">
+                <h3 class="log-title">Best Moves (Engine)</h3>
+                <div id="analysis-lines" class="log"></div>
+            </div>
+            <h3 class="log-title">Move Log</h3>
+            <div id="log" class="log"></div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- Center (large, clean board) -->
+        <!-- ============================== -->
+        <div class="center-panel">
+            <div class="board-area">
+                <div id="board"></div>
+            </div>
+            <div class="nav-controls" id="nav-controls">
+                <button id="nav-first" onclick="navFirst()" title="Go to start">⏮</button>
+                <button id="nav-back" onclick="navBack()" title="Previous move">◀ Back</button>
+                <div class="nav-position-label" id="nav-position-label">0 / 0</div>
+                <button id="nav-forward" onclick="navForward()" title="Next move">Forward ▶</button>
+                <button id="nav-last" onclick="navLast()" title="Go to last move">⏭</button>
+            </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- Left panel (analysis settings) -->
+        <!-- ============================== -->
+        <div class="sidebar left-panel">
+            <div id="analysis-settings" class="analysis-settings">
+                <div class="settings-group">
+                    <div class="group-title">Load from Lichess Link</div>
+                    <input type="text" id="lichess-url-input" placeholder="Paste Lichess game link here...">
+                    <div class="btn-row">
+                        <button class="btn-small" onclick="loadFromLichess()">Load from Lichess</button>
+                    </div>
+                    <div class="field-label">You can add a ply number after '#', e.g. lichess.org/abcd1234#30</div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="group-title">Load Position (FEN)</div>
+                    <input type="text" id="fen-input" placeholder="Paste FEN code here...">
+                    <div class="btn-row">
+                        <button class="btn-small" onclick="loadFEN()">Load FEN</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="group-title">Load Moves (PGN)</div>
+                    <textarea id="pgn-input" rows="4" placeholder="Paste PGN text here... example: 1.e4 e5 2.Nf3 Nc6"></textarea>
+                    <div class="btn-row">
+                        <button class="btn-small" onclick="loadPGN()">Load PGN</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="group-title">Board Tools</div>
+                    <div class="btn-row">
+                        <button class="btn-small" onclick="newAnalysisBoard()">↺ Starting Position</button>
+                        <button class="btn-small" onclick="undoMoveAnalysis()">⬅ Undo</button>
+                        <button class="btn-small" onclick="flipBoardAnalysis()">⇅ Flip Board</button>
+                    </div>
+                    <div class="field-label">Analysis Depth</div>
+                    <select id="analysis-depth-select" onchange="setAnalysisDepth()" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:6px;">
+                        <option value="10">10 (fast)</option>
+                        <option value="14">14</option>
+                        <option value="16" selected>16 (balanced)</option>
+                        <option value="18">18</option>
+                        <option value="20">20 (strong/slower)</option>
+                    </select>
+                </div>
+
+                <div class="settings-group">
+                    <div class="group-title">Current FEN / PGN</div>
+                    <div class="field-label">FEN</div>
+                    <input type="text" id="current-fen" readonly onclick="this.select()">
+                    <div class="field-label">PGN</div>
+                    <textarea id="current-pgn" rows="3" readonly onclick="this.select()"></textarea>
+                </div>
+            </div>
+
+            <div class="status-box"><div id="status-txt">Loading engine...</div></div>
+        </div>
+    </div>
+
+    <!-- Chess-related scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+    <script>
+    // ════════════════════════════════════════
+    // Core variables (analysis-only)
+    // ════════════════════════════════════════
+    var board = null, game = new Chess();
+    var engine = null;
+
+    var analysisMultiPV = 3;
+    var analysisDepth = 16;
+    var analysisLines = {}; // multipv id -> {depth, scoreType, scoreVal, pv}
+    var navPly = 0; // which ply is currently displayed on the board (0 = start position, N = after N moves)
+
+    var moveCount = 1;
+
+    // ════════════════════════════════════════
+    // Initialize the Stockfish engine
+    // ════════════════════════════════════════
+    function initEngine() {
+        var stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+        fetch(stockfishUrl)
+            .then(function(response) { return response.text(); })
+            .then(function(script) {
+                var blob = new Blob([script], { type: 'application/javascript' });
+                engine = new Worker(URL.createObjectURL(blob));
+                engine.onmessage = function(event) {
+                    var line = event.data;
+                    if (!line || typeof line !== 'string') return;
+
+                    // Ignore incoming analysis while browsing older moves in the history (not the live position)
+                    if (navPly !== game.history().length) return;
+                    if (line.indexOf('info') === 0 && line.indexOf(' multipv ') > -1 && line.indexOf(' pv ') > -1) {
+                        var info = parseInfoLine(line);
+                        if (info.pv && info.pv.length) updateAnalysisLine(info);
+                    }
+                };
+                engine.postMessage('uci');
+                engine.postMessage('isready');
+                engine.postMessage('setoption name MultiPV value ' + analysisMultiPV);
+
+                game = new Chess();
+                board.position(game.fen());
+                syncNavToLatest();
+                updateUI();
+                updateFenPgnDisplay();
+                runAnalysis();
+            })
+            .catch(function() { $("#status-txt").text('⚠ Error loading engine'); });
+    }
+
+    // ════════════════════════════════════════
+    // Board interaction (manual moves for both sides)
+    // ════════════════════════════════════════
+    function onDragStart(source, piece) {
+        if (game.game_over()) return false;
+        // Must be viewing the latest position to make a move; browsing history disables dragging
+        if (navPly !== game.history().length) return false;
+        // Allow moving any piece as long as it's that color's turn
+        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
+    }
+
+    function onDrop(source, target) {
+        var move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+
+        addLogAnalysis(move.san, move.color);
+        syncNavToLatest();
+        updateUI();
+        updateFenPgnDisplay();
+        if (game.game_over()) { $('#analysis-lines').html('<div style="color:#666;">Game over</div>'); }
+        else runAnalysis();
+    }
+
+    function onSnapEnd() { board.position(game.fen()); }
+
+    function updateUI() {
+        var status = (game.turn() === 'w' ? 'White' : 'Black') + "'s turn — Analysis mode";
+        if (game.in_checkmate()) status = 'Checkmate!';
+        else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition()) status = 'Draw!';
+        $("#status-txt").text(status);
+    }
+
+    // Log moves in analysis mode (White / Black)
+    function addLogAnalysis(san, color) {
+        var pName = color === 'w' ? 'White' : 'Black';
+        var moveNumStr = color === 'w' ? `<span style="color:#555;">${moveCount}.</span> ` : '';
+        $("#log").prepend(`<div>${moveNumStr}<b>${pName}:</b> ${san}</div>`);
+        if (color === 'b') moveCount++;
+    }
+
+    function rebuildLogFromHistory() {
+        $('#log').empty();
+        var hist = game.history({ verbose: true });
+        var num = 1;
+        hist.forEach(function(m) {
+            var pName = m.color === 'w' ? 'White' : 'Black';
+            var moveNumStr = m.color === 'w' ? `<span style="color:#555;">${num}.</span> ` : '';
+            $('#log').prepend(`<div>${moveNumStr}<b>${pName}:</b> ${m.san}</div>`);
+            if (m.color === 'b') num++;
+        });
+        moveCount = num;
+    }
+
+    function updateFenPgnDisplay() {
+        $('#current-fen').val(game.fen());
+        $('#current-pgn').val(game.pgn());
+    }
+
+    // ════════════════════════════════════════
+    // Run analysis (Multi-PV) and display 2-3 lines
+    // ════════════════════════════════════════
+    function runAnalysis() {
+        if (!engine) return;
+        analysisLines = {};
+        $('#analysis-lines').html('<div style="color:#666;">...Analyzing</div>');
+        engine.postMessage('stop');
+        engine.postMessage('position fen ' + game.fen());
+        engine.postMessage('go depth ' + analysisDepth);
+    }
+
+    // Parses a line "info ... multipv N ... score cp/mate X ... pv m1 m2 m3 ..." from Stockfish
+    function parseInfoLine(line) {
+        var tokens = line.split(' ');
+        var result = {};
+        for (var i = 0; i < tokens.length; i++) {
+            if (tokens[i] === 'depth') result.depth = parseInt(tokens[++i], 10);
+            else if (tokens[i] === 'multipv') result.multipv = parseInt(tokens[++i], 10);
+            else if (tokens[i] === 'score') {
+                result.scoreType = tokens[++i];
+                result.scoreVal = parseInt(tokens[++i], 10);
+            } else if (tokens[i] === 'pv') {
+                result.pv = tokens.slice(i + 1);
+                break;
+            }
+        }
+        return result;
+    }
+
+    function updateAnalysisLine(info) {
+        var id = info.multipv || 1;
+        var existing = analysisLines[id];
+        if (existing && existing.depth > info.depth) return; // keep only the deepest
+        analysisLines[id] = info;
+        renderAnalysisLines();
+    }
+
+    // Converts UCI moves (e2e4) into readable SAN format (1.e4 e5 2.Nf3 ...)
+    function pvToSan(fen, pvUci, maxPly) {
+        var tempGame = new Chess(fen);
+        var parts = fen.split(' ');
+        var fullmove = parseInt(parts[5], 10) || 1;
+        var out = [];
+        var limit = Math.min(pvUci.length, maxPly || 6);
+        var first = true;
+        for (var i = 0; i < limit; i++) {
+            var uci = pvUci[i];
+            if (!uci || uci.length < 4) break;
+            var mover = tempGame.turn();
+            var from = uci.slice(0, 2), to = uci.slice(2, 4);
+            var promo = uci.length > 4 ? uci.slice(4) : undefined;
+            var mv = tempGame.move({ from: from, to: to, promotion: promo || 'q' });
+            if (!mv) break;
+            if (mover === 'w') {
+                out.push(fullmove + '.' + mv.san);
+            } else {
+                out.push(first ? (fullmove + '...' + mv.san) : mv.san);
+                fullmove++;
+            }
+            first = false;
+        }
+        return out.join(' ');
+    }
+
+    function renderAnalysisLines() {
+        var fen = game.fen();
+        var mult = game.turn() === 'w' ? 1 : -1; // always convert eval to White's perspective
+        var keys = Object.keys(analysisLines).map(Number).sort(function(a, b) { return a - b; });
+        var html = '';
+        keys.forEach(function(k) {
+            var info = analysisLines[k];
+            var scoreTxt;
+            if (info.scoreType === 'mate') {
+                var m = info.scoreVal * mult;
+                scoreTxt = 'Mate ' + (m > 0 ? '#' : '#-') + Math.abs(m);
+            } else {
+                var cp = (info.scoreVal * mult / 100).toFixed(2);
+                scoreTxt = (cp > 0 ? '+' : '') + cp;
+            }
+            var sanLine = pvToSan(fen, info.pv, 8);
+            html += '<div class="line-row"><span class="line-eval">' + k + ') ' + scoreTxt + '</span>' +
+                    '<span class="line-depth">depth ' + (info.depth || '') + '</span>' +
+                    '<span class="line-moves">' + sanLine + '</span></div>';
+        });
+        $('#analysis-lines').html(html || '<div style="color:#666;">...Analyzing</div>');
+    }
+
+    // ════════════════════════════════════════
+    // Load a live position/PGN directly from a Lichess game link
+    // ════════════════════════════════════════
+    function extractLichessGameId(url) {
+        // 8-character Lichess game ID, ignoring /black, /white, ?params, #ply, etc.
+        var m = url.match(/lichess\.org\/(?:embed\/)?([a-zA-Z0-9]{8})/);
+        return m ? m[1] : null;
+    }
+
+    function extractLichessTargetPly(url) {
+        // Ply number after '#' in the URL, if present (e.g. lichess.org/abcd1234#45)
+        var m = url.match(/#(\d+)/);
+        return m ? parseInt(m[1], 10) : null;
+    }
+
+    function loadFromLichess() {
+        var url = $('#lichess-url-input').val().trim();
+        if (!url) { $('#status-txt').text('⚠ Please paste a Lichess link first'); return; }
+
+        var gameId = extractLichessGameId(url);
+        if (!gameId) { $('#status-txt').text('⚠ Invalid Lichess link'); return; }
+
+        var targetPly = extractLichessTargetPly(url);
+
+        // Cache-busting timestamp so live/in-progress games are never served stale
+        var apiUrl = 'https://lichess.org/game/export/' + gameId +
+            '?clocks=false&evals=false&literate=false&_=' + Date.now();
+
+        $('#status-txt').text('Loading game from Lichess...');
+
+        fetch(apiUrl, { headers: { 'Accept': 'application/x-chess-pgn' } })
+            .then(function(response) {
+                if (response.status === 404) throw new Error('Game not found. Please check the link.');
+                if (!response.ok) throw new Error('Failed to connect to Lichess (code ' + response.status + ')');
+                return response.text();
+            })
+            .then(function(pgnText) {
+                if (!pgnText || !pgnText.trim()) throw new Error('No data was received for this game');
+
+                var tmp = new Chess();
+                var ok = tmp.load_pgn(pgnText);
+                if (!ok) throw new Error('Could not parse the PGN data received from Lichess');
+
+                game = tmp;
+                rebuildLogFromHistory();
+                analysisLines = {};
+
+                var totalPlies = game.history().length;
+                var finalPly = totalPlies;
+                var beyondRange = false;
+                if (targetPly !== null) {
+                    if (targetPly > totalPlies) {
+                        beyondRange = true; // fall back to the last available position
+                    } else {
+                        finalPly = targetPly;
+                    }
+                }
+
+                showPositionAtPly(finalPly); // updates board + FEN/PGN boxes get filled below
+                updateFenPgnDisplay();
+
+                var headers = (typeof game.header === 'function') ? game.header() : {};
+                var white = headers.White || 'White';
+                var black = headers.Black || 'Black';
+
+                if (beyondRange) {
+                    $('#status-txt').text('⚠ Requested ply (' + targetPly + ') is beyond the actual moves played (' +
+                        totalPlies + '). Showing the last available position.');
+                } else {
+                    $('#status-txt').text('✔ Loaded: ' + white + ' vs ' + black + ' (ply ' + finalPly + '/' + totalPlies + ')');
+                }
+            })
+            .catch(function(err) {
+                $('#status-txt').text('⚠ ' + err.message);
+            });
+    }
+
+    function loadFEN() {
+        var fen = $('#fen-input').val().trim();
+        if (!fen) return;
+        var tmp = new Chess();
+        var ok = tmp.load(fen);
+        if (!ok) { $('#status-txt').text('⚠ Invalid FEN'); return; }
+        game = tmp;
+        board.position(game.fen(), false);
+        $('#log').empty();
+        moveCount = parseInt(fen.split(' ')[5], 10) || 1;
+        analysisLines = {};
+        syncNavToLatest();
+        updateUI();
+        updateFenPgnDisplay();
+        if (!game.game_over()) runAnalysis();
+        else $('#analysis-lines').html('<div style="color:#666;">Position is over</div>');
+    }
+
+    function loadPGN() {
+        var pgn = $('#pgn-input').val().trim();
+        if (!pgn) return;
+        var tmp = new Chess();
+        var ok = tmp.load_pgn(pgn);
+        if (!ok) { $('#status-txt').text('⚠ Invalid PGN'); return; }
+        game = tmp;
+        board.position(game.fen(), false);
+        rebuildLogFromHistory();
+        analysisLines = {};
+        syncNavToLatest();
+        updateUI();
+        updateFenPgnDisplay();
+        if (!game.game_over()) runAnalysis();
+        else $('#analysis-lines').html('<div style="color:#666;">Position is over</div>');
+    }
+
+    function newAnalysisBoard() {
+        game = new Chess();
+        board.position(game.fen(), false);
+        $('#log').empty();
+        moveCount = 1;
+        analysisLines = {};
+        syncNavToLatest();
+        updateUI();
+        updateFenPgnDisplay();
+        runAnalysis();
+    }
+
+    function undoMoveAnalysis() {
+        var undone = game.undo();
+        if (!undone) return;
+        board.position(game.fen(), false);
+        rebuildLogFromHistory();
+        analysisLines = {};
+        syncNavToLatest();
+        updateUI();
+        updateFenPgnDisplay();
+        if (!game.game_over()) runAnalysis();
+        else $('#analysis-lines').empty();
+    }
+
+    function flipBoardAnalysis() {
+        var cur = board.orientation();
+        board.orientation(cur === 'white' ? 'black' : 'white');
+    }
+
+    function setAnalysisDepth() {
+        analysisDepth = parseInt($('#analysis-depth-select').val(), 10);
+        runAnalysis();
+    }
+
+    // ════════════════════════════════════════
+    // Move history navigation (back / forward through played moves)
+    // ════════════════════════════════════════
+    function syncNavToLatest() {
+        navPly = game.history().length;
+        navUpdateButtons();
+    }
+
+    function navUpdateButtons() {
+        var total = game.history().length;
+        $('#nav-back, #nav-first').prop('disabled', navPly <= 0);
+        $('#nav-forward, #nav-last').prop('disabled', navPly >= total);
+        $('#nav-position-label').text(navPly + ' / ' + total);
+    }
+
+    function showPositionAtPly(ply) {
+        var hist = game.history({ verbose: true });
+        ply = Math.max(0, Math.min(ply, hist.length));
+        var temp = new Chess();
+        for (var i = 0; i < ply; i++) {
+            temp.move({ from: hist[i].from, to: hist[i].to, promotion: hist[i].promotion });
+        }
+        navPly = ply;
+        board.position(temp.fen(), true);
+        navUpdateButtons();
+
+        var atLatest = (navPly === hist.length);
+        if (atLatest) {
+            updateUI();
+            if (!game.game_over()) runAnalysis();
+        } else {
+            if (engine) engine.postMessage('stop');
+            var turnColor = temp.turn() === 'w' ? 'White' : 'Black';
+            $('#status-txt').text('Viewing move ' + navPly + ' of ' + hist.length + ' — ' + turnColor + ' to move');
+            $('#analysis-lines').html('<div style="color:#666;">Go to the latest move to continue analysis</div>');
+        }
+    }
+
+    function navFirst() { showPositionAtPly(0); }
+    function navBack() { showPositionAtPly(navPly - 1); }
+    function navForward() { showPositionAtPly(navPly + 1); }
+    function navLast() { showPositionAtPly(game.history().length); }
+
+    // Resize the board when the window size changes
+    $(window).resize(function() {
+        if(board) board.resize();
+    });
+
+    $(document).ready(function() {
+        board = Chessboard('board', {
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd
+        });
+        initEngine();
+    });
+    </script>
+</body>
+</html>
